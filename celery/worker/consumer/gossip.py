@@ -34,7 +34,7 @@ class Gossip(bootsteps.ConsumerStep):
     compatible_transports = {'amqp', 'redis'}
 
     def __init__(self, c, without_gossip=False,
-                 interval=5.0, heartbeat_interval=2.0, **kwargs):
+                 interval=5.0, heartbeat_interval=2.0, accept=None, **kwargs):
         self.enabled = not without_gossip and self.compatible_transport(c.app)
         self.app = c.app
         c.gossip = self
@@ -71,7 +71,9 @@ class Gossip(bootsteps.ConsumerStep):
         self.election_handlers = {
             'task': self.call_task
         }
-
+        if accept is None:
+            accept = {self.app.conf.event_serializer, 'json'}
+        self.accept = accept
         super().__init__(c, **kwargs)
 
     def compatible_transport(self, app):
@@ -176,7 +178,9 @@ class Gossip(bootsteps.ConsumerStep):
             channel,
             queues=[ev.queue],
             on_message=partial(self.on_message, ev.event_from_message),
-            no_ack=True
+            accept=self.accept,
+            no_ack=True,
+            logger=logger
         )]
 
     def on_message(self, prepare, message):
